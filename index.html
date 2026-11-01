@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#181b21">
+  <link rel="manifest" href="manifest.json">
+  <title>Nuestro mundo 🐨</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    body {
+      background-color: #0f1115;
+      color: #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    header {
+      background: #181b21;
+      padding: 14px 16px;
+      text-align: center;
+      border-bottom: 1px solid #2d333b;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 1000;
+    }
+    header h1 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    #counter {
+      font-size: 0.82rem;
+      color: #94a3b8;
+      margin-top: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+    #counter span {
+      color: #38bdf8;
+      font-weight: 600;
+    }
+    #map {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      background: #1e2229;
+    }
+
+    /* Botón flotante para añadir lugar */
+    #add-btn {
+      position: fixed;
+      bottom: 24px;
+      left: 20px;
+      z-index: 1000;
+      background: #38bdf8;
+      color: #0f1115;
+      border: none;
+      border-radius: 50px;
+      padding: 12px 18px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      box-shadow: 0 4px 14px rgba(56, 189, 248, 0.4);
+      cursor: pointer;
+      transition: transform 0.15s, background 0.2s;
+    }
+    #add-btn.active {
+      background: #f43f5e;
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(244, 63, 94, 0.4);
+    }
+
+    /* Modal de formulario */
+    #modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-box {
+      background: #181b21;
+      border: 1px solid #2d333b;
+      border-radius: 16px;
+      padding: 20px;
+      width: 100%;
+      max-width: 340px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+    }
+    .modal-box h2 {
+      font-size: 1.1rem;
+      margin-bottom: 14px;
+      color: #f8fafc;
+    }
+    .modal-box input, .modal-box textarea {
+      width: 100%;
+      background: #0f1115;
+      border: 1px solid #30363d;
+      color: #e5e7eb;
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      font-size: 0.9rem;
+    }
+    .modal-box textarea {
+      resize: none;
+      height: 70px;
+    }
+    .file-label {
+      display: block;
+      background: #21262d;
+      border: 1px dashed #484f58;
+      text-align: center;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      margin-bottom: 14px;
+      color: #94a3b8;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .modal-actions button {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-cancel { background: #21262d; color: #cbd5e1; }
+    .btn-save { background: #38bdf8; color: #0f1115; }
+
+    /* Estilos del popup en el mapa */
+    .leaflet-popup-content-wrapper {
+      background: #1c2128 !important;
+      color: #f0f6fc !important;
+      border-radius: 12px !important;
+      padding: 6px !important;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
+    }
+    .leaflet-popup-tip { background: #1c2128 !important; }
+    .popup-box { max-width: 220px; }
+    .popup-box img {
+      width: 100%;
+      height: 140px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-top: 8px;
+      display: block;
+    }
+    .popup-box h3 { font-size: 1rem; margin-bottom: 2px; color: #f1f5f9; }
+    .popup-box .date { font-size: 0.75rem; color: #94a3b8; margin-bottom: 6px; }
+    .popup-box p { font-size: 0.82rem; line-height: 1.35; color: #cbd5e1; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Nuestro mundo 🐨</h1>
+    <div id="counter">Cargando tiempo juntos...</div>
+  </header>
+
+  <div id="map"></div>
+
+  <button id="add-btn">➕ Añadir sitio</button>
+
+  <!-- Modal para nuevo recuerdo -->
+  <div id="modal-overlay">
+    <div class="modal-box">
+      <h2>Nuevo recuerdo 📍</h2>
+      <input type="text" id="inp-nombre" placeholder="Título (ej. Escapada a Roma)" required>
+      <input type="text" id="inp-fecha" placeholder="Fecha (ej. Octubre 2026)" required>
+      <textarea id="inp-texto" placeholder="Nota o recuerdo de ese día..."></textarea>
+      
+      <label class="file-label" id="file-label-text">
+        📷 Seleccionar foto
+        <input type="file" id="inp-foto" accept="image/*" style="display:none">
+      </label>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btn-cancel">Cancelar</button>
+        <button class="btn-save" id="btn-save">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS y Supabase JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    // ==========================================
+    // 1. CREDENCIALES DE SUPABASE (Pega las tuyas aquí)
+    // ==========================================
+    const SUPABASE_URL = "https://uzueliljtbkhohhfjqcx.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV6dWVsaWxqdGJraG9oaGZqcWN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM1NTM2NDksImV4cCI6MjEwOTEyOTY0OX0.kFCBMLGRuTMFFiZhAkRAY1Obg4DAiuymkwnun2WIdvw";
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // ==========================================
+    // 2. CONTADOR DE TIEMPO JUNTOS (Pon vuestra fecha exacta)
+    // ==========================================
+    const START_DATE = new Date("2023-11-05T00:00:00");
+
+    function updateCounter() {
+      const now = new Date();
+      if (now < START_DATE) return;
+
+      let years = now.getFullYear() - START_DATE.getFullYear();
+      let months = now.getMonth() - START_DATE.getMonth();
+      let days = now.getDate() - START_DATE.getDate();
+      let hours = now.getHours() - START_DATE.getHours();
+      let minutes = now.getMinutes() - START_DATE.getMinutes();
+      let seconds = now.getSeconds() - START_DATE.getSeconds();
+
+      if (seconds < 0) { seconds += 60; minutes--; }
+      if (minutes < 0) { minutes += 60; hours--; }
+      if (hours < 0) { hours += 24; days--; }
+      if (days < 0) {
+        const prevMonthDays = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+        days += prevMonthDays;
+        months--;
+      }
+      if (months < 0) { months += 12; years--; }
+
+      let text = "Juntos desde hace ";
+      if (years > 0) text += `<span>${years}</span> ${years === 1 ? 'año' : 'años'} `;
+      if (months > 0 || years > 0) text += `<span>${months}</span> ${months === 1 ? 'mes' : 'meses'} `;
+      text += `<span>${days}</span> ${days === 1 ? 'día' : 'días'} `;
+      text += `<span>${hours}</span>h <span>${minutes}</span>m <span>${seconds}</span>s`;
+
+      document.getElementById('counter').innerHTML = text;
+    }
+    setInterval(updateCounter, 1000);
+    updateCounter();
+
+    // ==========================================
+    // 3. MAPA E INICIALIZACIÓN DE LUGARES BASE
+    // ==========================================
+    const map = L.map('map', { zoomControl: false }).setView([41.0, 2.0], 5);
+
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    // Lugares fijos que van en el código
+    const lugaresBase = [
+      {
+        nombre: "Madrid",
+        fecha: "2026",
+        lat: 40.4168,
+        lng: -3.7038,
+        texto: "Hogar de la carapepino",
+        foto: "fotos/madrid.jpg"
+      },
+      {
+        nombre: "Alicante",
+        fecha: "2026",
+        lat: 38.3452,
+        lng: -0.4810,
+        texto: "Hogar del más sexy",
+        foto: "fotos/alicante.jpg"
+      },
+      {
+        nombre: "Sevilla",
+        fecha: "2026",
+        lat: 37.38636,
+        lng: -6.00239,
+        texto: "Cuando paso por el puente de Triana, contigo.",
+        foto: "fotos/sevilla.jpg"
+      },
+      {
+        nombre: "Milán",
+        fecha: "Junio 2026",
+        lat: 45.46419,
+        lng: 9.19044,
+        texto: "Buongiorno principessa.",
+        foto: "fotos/milan.jpg"
+      }
+    ];
+
+    function pintarChincheta(lugar) {
+      const imgHtml = lugar.foto ? `<img src="${lugar.foto}" alt="${lugar.nombre}" loading="lazy">` : '';
+      const htmlContent = `
+        <div class="popup-box">
+          <h3>${lugar.nombre}</h3>
+          <div class="date">${lugar.fecha}</div>
+          <p>${lugar.texto || ''}</p>
+          ${imgHtml}
+        </div>
+      `;
+      L.marker([lugar.lat, lugar.lng]).addTo(map).bindPopup(htmlContent);
+    }
+
+    // Pintar primero los fijos
+    lugaresBase.forEach(pintarChincheta);
+
+    // Descargar los lugares guardados en Supabase
+    async function cargarDesdeNube() {
+      if (SUPABASE_URL.startsWith("PEGA_")) return;
+      const { data, error } = await supabaseClient.from('lugares').select('*');
+      if (!error && data) {
+        data.forEach(pintarChincheta);
+      }
+    }
+    cargarDesdeNube();
+
+    // ==========================================
+    // 4. LÓGICA PARA AÑADIR NUEVOS PUNTOS Y COMPRIMIR FOTOS
+    // ==========================================
+    let modoAñadir = false;
+    let coordsSeleccionadas = null;
+    let fotoComprimidaBase64 = null;
+
+    const addBtn = document.getElementById('add-btn');
+    const modal = document.getElementById('modal-overlay');
+    const fileInput = document.getElementById('inp-foto');
+    const fileLabelText = document.getElementById('file-label-text');
+
+    addBtn.addEventListener('click', () => {
+      modoAñadir = !modoAñadir;
+      if (modoAñadir) {
+        addBtn.classList.add('active');
+        addBtn.innerText = "📍 Toca un punto del mapa...";
+      } else {
+        addBtn.classList.remove('active');
+        addBtn.innerText = "➕ Añadir sitio";
+      }
+    });
+
+    map.on('click', (e) => {
+      if (!modoAñadir) return;
+      coordsSeleccionadas = e.latlng;
+      modal.style.display = 'flex';
+    });
+
+    document.getElementById('btn-cancel').addEventListener('click', cerrarModal);
+
+    function cerrarModal() {
+      modal.style.display = 'none';
+      modoAñadir = false;
+      addBtn.classList.remove('active');
+      addBtn.innerText = "➕ Añadir sitio";
+      document.getElementById('inp-nombre').value = '';
+      document.getElementById('inp-fecha').value = '';
+      document.getElementById('inp-texto').value = '';
+      fileLabelText.innerHTML = '📷 Seleccionar foto <input type="file" id="inp-foto" accept="image/*" style="display:none">';
+      fotoComprimidaBase64 = null;
+    }
+
+    // Comprimir foto en el navegador a max 800px (unos 60KB)
+    document.addEventListener('change', (e) => {
+      if (e.target && e.target.id === 'inp-foto') {
+        const file = e.target.files[0];
+        if (!file) return;
+        fileLabelText.innerText = "⏳ Procesando foto...";
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          const img = new Image();
+          img.onload = function() {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 800;
+            const scaleSize = MAX_WIDTH / img.width;
+            canvas.width = img.width > MAX_WIDTH ? MAX_WIDTH : img.width;
+            canvas.height = img.width > MAX_WIDTH ? (img.height * scaleSize) : img.height;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            fotoComprimidaBase64 = canvas.toDataURL('image/jpeg', 0.75);
+            fileLabelText.innerText = "✅ Foto lista";
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // Guardar en Supabase y pintar en el mapa
+    document.getElementById('btn-save').addEventListener('click', async () => {
+      const nombre = document.getElementById('inp-nombre').value.trim();
+      const fecha = document.getElementById('inp-fecha').value.trim();
+      const texto = document.getElementById('inp-texto').value.trim();
+
+      if (!nombre || !fecha) {
+        alert("Pon al menos un título y la fecha.");
+        return;
+      }
+
+      const btnSave = document.getElementById('btn-save');
+      btnSave.innerText = "Subiendo...";
+      btnSave.disabled = true;
+
+      const nuevoLugar = {
+        nombre,
+        fecha,
+        lat: coordsSeleccionadas.lat,
+        lng: coordsSeleccionadas.lng,
+        texto,
+        foto: fotoComprimidaBase64
+      };
+
+      const { error } = await supabaseClient.from('lugares').insert([nuevoLugar]);
+
+      btnSave.innerText = "Guardar";
+      btnSave.disabled = false;
+
+      if (error) {
+        alert("Error al subir a Supabase: " + error.message);
+      } else {
+        pintarChincheta(nuevoLugar);
+        cerrarModal();
+      }
+    });
+  </script>
+</body>
+</html>
